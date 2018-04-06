@@ -2,16 +2,16 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 42666e1926c0568ecba9e38ecba98baf25126da6bfd529592e01954ed8fafc80
+-- hash: 518e7547ea1534331fa04141c288ec28cd1673ad989ec8e36471a07efba9da55
 
 name:           raytracer
 version:        0.1.0.0
-description:    Please see the README on Github at <https://github.com/githubuser/raytracer#readme>
-homepage:       https://github.com/githubuser/raytracer#readme
-bug-reports:    https://github.com/githubuser/raytracer/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2018 Author name here
+description:    Please see the README on Github at <https://github.com/boshen/raytracer.hs#readme>
+homepage:       https://github.com/boshen/raytracer.hs#readme
+bug-reports:    https://github.com/boshen/raytracer.hs/issues
+author:         Boshen
+maintainer:     boshenc@gmail.com
+copyright:      2018 Boshen
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -23,13 +23,17 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/raytracer
+  location: https://github.com/boshen/raytracer.hs
 
 library
   hs-source-dirs:
       src
   build-depends:
-      base >=4.7 && <5
+      Vec
+    , base >=4.7 && <5
+    , friday
+    , friday-devil
+    , vector
   exposed-modules:
       Lib
   other-modules:
@@ -42,8 +46,12 @@ executable raytracer-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      Vec
+    , base >=4.7 && <5
+    , friday
+    , friday-devil
     , raytracer
+    , vector
   other-modules:
       Paths_raytracer
   default-language: Haskell2010
@@ -55,8 +63,12 @@ test-suite raytracer-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      Vec
+    , base >=4.7 && <5
+    , friday
+    , friday-devil
     , raytracer
+    , vector
   other-modules:
       Paths_raytracer
   default-language: Haskell2010
