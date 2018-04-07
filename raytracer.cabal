@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 518e7547ea1534331fa04141c288ec28cd1673ad989ec8e36471a07efba9da55
+-- hash: 554548255f50558414a010cf60ac9dcd33c71e0e414b2d361741eb0e397032bc
 
 name:           raytracer
 version:        0.1.0.0
@@ -28,6 +28,7 @@ source-repository head
 library
   hs-source-dirs:
       src
+  ghc-options: -Wall
   build-depends:
       Vec
     , base >=4.7 && <5
@@ -44,7 +45,7 @@ executable raytracer-exe
   main-is: Main.hs
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Vec
     , base >=4.7 && <5

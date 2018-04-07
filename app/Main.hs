@@ -6,7 +6,7 @@ import Lib
 
 main :: IO ()
 main = do
-    mErr <- save Autodetect "test.png" $ getImage
+    mErr <- save Autodetect "test.png" $ getImage 800 600
     case mErr of
         Nothing  ->
             putStrLn "Success."
