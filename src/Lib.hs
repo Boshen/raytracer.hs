@@ -18,14 +18,15 @@ data Ray = Ray
 data Sphere = Sphere
     { position :: V3 Double
     , radius :: Double
+    , diffuse :: V3 Double
     }
 
 spheres :: [Sphere]
 spheres =
-    [ Sphere (V3 200 300 0) 100
-    , Sphere (V3 300 200 50) 50
-    , Sphere (V3 400 400 0) 100
-    , Sphere (V3 540 140 0) 100
+    [ Sphere (V3 200 300 0) 100 (V3 1 0 0)
+    , Sphere (V3 300 200 50) 50 (V3 0 1 0)
+    , Sphere (V3 400 400 0) 100 (V3 0 0 1)
+    , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255))
     ]
 
 light :: V3 Double
@@ -47,14 +48,14 @@ getPixel w i = if hit then hitLight else RGBPixel 255 255 255
         hitLight = traceLight ray $ minimumBy (comparing snd) hits
 
 traceLight :: Ray -> (Sphere, Double) -> RGBPixel
-traceLight ray (sphere, d) = RGBPixel rgb rgb rgb
+traceLight ray (sphere, d) = RGBPixel r g b
     where
         newStart = (start ray) + ((*d) <$> direction ray)
-        normal = normalize $ (position sphere) - newStart
-        dist = newStart - light
-        dir = (*(norm dist)) <$> dist
+        normal = normalize $ newStart - (position sphere)
+        dist = light - newStart
+        dir = (/(norm dist)) <$> dist
         lambert = dir `dot` normal
-        rgb = round $ min 240 $ max 0 lambert
+        (V3 r g b) =  round . max 0 . min 255 . (255*) . (*lambert) <$> diffuse sphere
 
 intersect :: Ray -> Sphere -> Maybe (Sphere, Double)
 intersect ray sphere =

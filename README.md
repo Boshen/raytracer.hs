@@ -14,3 +14,7 @@
 * add a light source and compute lambert lighting
 * replace `Vec` with `linear` library for vector maths
 ![Step 3](./images/step3.png "Step 3")
+
+# step 4
+* add material colours and light sources
+![Step 4](./images/step4.png "Step 4")
