@@ -24,7 +24,8 @@ dependencies:
 - friday
 - friday-devil
 - vector
-- Vec
+- linear
+- mtl
 
 library:
   source-dirs: src

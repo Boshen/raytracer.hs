@@ -1,28 +1,35 @@
 module Lib (getImage) where
 
+import Data.Ord
+import Data.List (minimumBy)
 import Data.Maybe
-import Data.Vec ((:.)(..), Vec3, dot, zipWith)
+import Linear.V3
+import Linear.Vector
+import Linear.Metric
 import Data.Vector.Storable (generate)
 import Vision.Image
 import Vision.Primitive (ix2)
 
 data Ray = Ray
-    { start :: Vec3 Double
-    , direction :: Vec3 Double
+    { start :: V3 Double
+    , direction :: V3 Double
     }
 
 data Sphere = Sphere
-    { position :: Vec3 Double
+    { position :: V3 Double
     , radius :: Double
     }
 
 spheres :: [Sphere]
 spheres =
-    [ Sphere (200 :. 300 :. 0) 100
-    , Sphere (300 :. 200 :. 50) 50
-    , Sphere (400 :. 400 :. 0) 100
-    , Sphere (540 :. 140 :. 0) 100
+    [ Sphere (V3 200 300 0) 100
+    , Sphere (V3 300 200 50) 50
+    , Sphere (V3 400 400 0) 100
+    , Sphere (V3 540 140 0) 100
     ]
+
+light :: V3 Double
+light = V3 0 240 100
 
 getImage :: Int -> Int -> RGB
 getImage w h = Manifest size pixels
@@ -31,25 +38,36 @@ getImage w h = Manifest size pixels
         pixels = generate (w * h) $ getPixel w
 
 getPixel :: Int -> Int -> RGBPixel
-getPixel w i = if hit then RGBPixel 0 0 0 else RGBPixel 255 255 255
+getPixel w i = if hit then hitLight else RGBPixel 255 255 255
     where
         (x, y) = (i `div` w, i `mod` w)
-        ray = Ray (fromIntegral x :. fromIntegral y :. (-2000)) (0 :. 0 :. 1)
-        hits = intersect ray <$> spheres
-        hit = not . null $ catMaybes hits
+        ray = Ray (V3 (fromIntegral x) (fromIntegral y) (-2000)) (V3 0 0 1)
+        hits = catMaybes $ intersect ray <$> spheres
+        hit = not . null $ hits
+        hitLight = traceLight ray $ minimumBy (comparing snd) hits
+
+traceLight :: Ray -> (Sphere, Double) -> RGBPixel
+traceLight ray (sphere, d) = RGBPixel rgb rgb rgb
+    where
+        newStart = (start ray) + ((*d) <$> direction ray)
+        normal = normalize $ (position sphere) - newStart
+        dist = newStart - light
+        dir = (*(norm dist)) <$> dist
+        lambert = dir `dot` normal
+        rgb = round $ min 240 $ max 0 lambert
 
 intersect :: Ray -> Sphere -> Maybe (Sphere, Double)
 intersect ray sphere =
     let
-        a = dot dir dir
-        dist = Data.Vec.zipWith (-) strt p
-        b = 2 * dot dir dist
-        c = dot dist dist - r * r
+        a = dir `dot` dir
+        dist = strt ^-^ p
+        b = 2 * dir `dot` dist
+        c = dist `dot` dist - r * r
         d = b * b - 4 * a * c
         sqrtD = sqrt d
         t0 = (-b + sqrtD) / 2
         t1 = (-b - sqrtD) / 2
-        mint = minimum $ filter (>=0) [t0, t1]
+        mint = minimum $ filter (> 0.001) [t0, t1]
     in
         if d < 0 then Nothing else Just (sphere, mint)
     where
