@@ -1,12 +1,12 @@
 module Lib (getImage) where
 
-import Data.Ord
 import Data.List (minimumBy)
 import Data.Maybe
+import Data.Ord
+import Data.Vector.Storable (generate)
+import Linear.Metric
 import Linear.V3
 import Linear.Vector
-import Linear.Metric
-import Data.Vector.Storable (generate)
 import Vision.Image
 import Vision.Primitive (ix2)
 
@@ -21,6 +21,11 @@ data Sphere = Sphere
     , diffuse :: V3 Double
     }
 
+data Light = Light
+    { lightPosition :: V3 Double
+    , intensity :: V3 Double
+    }
+
 spheres :: [Sphere]
 spheres =
     [ Sphere (V3 200 300 0) 100 (V3 1 0 0)
@@ -29,8 +34,12 @@ spheres =
     , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255))
     ]
 
-light :: V3 Double
-light = V3 0 240 100
+lights :: [Light]
+lights =
+    [ Light (V3 0 240 100) (V3 1 1 1)
+    , Light (V3 3200 3000 (-1000)) (V3 0.6 0.7 1)
+    , Light (V3 600 0 (-100)) (V3 0.3 0.5 1)
+    ]
 
 getImage :: Int -> Int -> RGB
 getImage w h = Manifest size pixels
@@ -39,23 +48,28 @@ getImage w h = Manifest size pixels
         pixels = generate (w * h) $ getPixel w
 
 getPixel :: Int -> Int -> RGBPixel
-getPixel w i = if hit then hitLight else RGBPixel 255 255 255
+getPixel w i = if hit then RGBPixel r g b else RGBPixel 255 255 255
     where
         (x, y) = (i `div` w, i `mod` w)
         ray = Ray (V3 (fromIntegral x) (fromIntegral y) (-2000)) (V3 0 0 1)
         hits = catMaybes $ intersect ray <$> spheres
         hit = not . null $ hits
-        hitLight = traceLight ray $ minimumBy (comparing snd) hits
+        (sphere, d) = minimumBy (comparing snd) hits
+        (V3 r g b) = round <$> traceLights ray sphere d lights
 
-traceLight :: Ray -> (Sphere, Double) -> RGBPixel
-traceLight ray (sphere, d) = RGBPixel r g b
+traceLights :: Ray -> Sphere -> Double -> [Light] -> V3 Double
+traceLights ray sphere d ls =
+    min 255 . (*255) <$> (sum $ (traceLight ray sphere d) <$> ls)
+
+traceLight :: Ray -> Sphere -> Double -> Light -> V3 Double
+traceLight ray sphere d light = if lambert <= 0 then V3 0 0 0 else coef
     where
         newStart = (start ray) + ((*d) <$> direction ray)
         normal = normalize $ newStart - (position sphere)
-        dist = light - newStart
+        dist = (lightPosition light) - newStart
         dir = (/(norm dist)) <$> dist
         lambert = dir `dot` normal
-        (V3 r g b) =  round . max 0 . min 255 . (255*) . (*lambert) <$> diffuse sphere
+        coef =  (*lambert) <$> ((diffuse sphere) * (intensity light))
 
 intersect :: Ray -> Sphere -> Maybe (Sphere, Double)
 intersect ray sphere =

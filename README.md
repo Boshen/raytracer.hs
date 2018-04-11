@@ -18,3 +18,8 @@
 # step 4
 * add material colours and light sources
 ![Step 4](./images/step4.png "Step 4")
+
+# step 5
+* add multiple light sources
+* add material diffusion
+![Step 5](./images/step5.png "Step 5")
