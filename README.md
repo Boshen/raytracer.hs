@@ -23,3 +23,7 @@
 * add multiple light sources
 * add material diffusion
 ![Step 5](./images/step5.png "Step 5")
+
+# step 6
+* add reflection
+![Step 6](./images/step6.png "Step 6")

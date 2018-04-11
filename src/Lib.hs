@@ -19,6 +19,7 @@ data Sphere = Sphere
     { position :: V3 Double
     , radius :: Double
     , diffuse :: V3 Double
+    , reflection :: Double
     }
 
 data Light = Light
@@ -28,10 +29,10 @@ data Light = Light
 
 spheres :: [Sphere]
 spheres =
-    [ Sphere (V3 200 300 0) 100 (V3 1 0 0)
-    , Sphere (V3 300 200 50) 50 (V3 0 1 0)
-    , Sphere (V3 400 400 0) 100 (V3 0 0 1)
-    , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255))
+    [ Sphere (V3 200 300 0) 100 (V3 1 0 0) 0.2
+    , Sphere (V3 300 200 50) 50 (V3 0 1 0) 0.5
+    , Sphere (V3 400 400 0) 100 (V3 0 0 1) 0.9
+    , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255)) 0.8
     ]
 
 lights :: [Light]
@@ -48,18 +49,31 @@ getImage w h = Manifest size pixels
         pixels = generate (w * h) $ getPixel w
 
 getPixel :: Int -> Int -> RGBPixel
-getPixel w i = if hit then RGBPixel r g b else RGBPixel 255 255 255
+getPixel w i = RGBPixel r g b
     where
+        color = V3 0 0 0
         (x, y) = (i `div` w, i `mod` w)
         ray = Ray (V3 (fromIntegral x) (fromIntegral y) (-2000)) (V3 0 0 1)
+        (V3 r g b) = max 0 . round . min 255 . (*255) <$> snd (trace 0 1 color ray)
+
+trace :: Int -> Double -> V3 Double -> Ray -> (Double, V3 Double)
+trace level coef color ray = if notHit || coef <= 0 || level >= 15
+    then if notHit && level == 0 then (0, V3 1 1 1) else (0, color)
+    else trace (level + 1) (coef * reflection sphere) (color + c) newRay
+    where
         hits = catMaybes $ intersect ray <$> spheres
-        hit = not . null $ hits
+        notHit = null hits
         (sphere, d) = minimumBy (comparing snd) hits
-        (V3 r g b) = round <$> traceLights ray sphere d lights
+        c = (*coef) <$> traceLights ray sphere d lights
+
+        newStart = (start ray) + ((*d) <$> direction ray)
+        normal = normalize $ newStart - (position sphere)
+        reflect = 2 * ((direction ray) `dot` normal)
+        newRay = Ray newStart $ (direction ray - ((*reflect) <$> normal))
 
 traceLights :: Ray -> Sphere -> Double -> [Light] -> V3 Double
 traceLights ray sphere d ls =
-    min 255 . (*255) <$> (sum $ (traceLight ray sphere d) <$> ls)
+    sum $ (traceLight ray sphere d) <$> ls
 
 traceLight :: Ray -> Sphere -> Double -> Light -> V3 Double
 traceLight ray sphere d light = if lambert <= 0 then V3 0 0 0 else coef
@@ -69,7 +83,7 @@ traceLight ray sphere d light = if lambert <= 0 then V3 0 0 0 else coef
         dist = (lightPosition light) - newStart
         dir = (/(norm dist)) <$> dist
         lambert = dir `dot` normal
-        coef =  (*lambert) <$> ((diffuse sphere) * (intensity light))
+        coef = (*lambert) <$> ((diffuse sphere) * (intensity light))
 
 intersect :: Ray -> Sphere -> Maybe (Sphere, Double)
 intersect ray sphere =
@@ -82,9 +96,9 @@ intersect ray sphere =
         sqrtD = sqrt d
         t0 = (-b + sqrtD) / 2
         t1 = (-b - sqrtD) / 2
-        mint = minimum $ filter (> 0.001) [t0, t1]
+        ts = filter (>= 0.001) [t0, t1]
     in
-        if d < 0 then Nothing else Just (sphere, mint)
+        if d < 0 || null ts then Nothing else Just (sphere, minimum ts)
     where
         (strt, dir) = (start ray, direction ray)
         (p, r) = (position sphere, radius sphere)
