@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 55a4475b7e3fa8466f966a6e9740a8be549cd5d88b00da4f6f49ecc815cb9c5c
+-- hash: 3b650d822c48c5bd0ec3ae69d350e2154a3d53060d98d1b8545b4bf062c46ad0
 
 name:           raytracer
 version:        0.1.0.0
@@ -28,7 +28,7 @@ source-repository head
 library
   hs-source-dirs:
       src
-  ghc-options: -Wall
+  ghc-options: -Wall -Wno-unused-top-binds
   build-depends:
       base >=4.7 && <5
     , friday

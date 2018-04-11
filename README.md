@@ -27,3 +27,8 @@
 # step 6
 * add reflection
 ![Step 6](./images/step6.png "Step 6")
+
+# step 7
+* refactor code
+* complete with lambertian + Blinn–Phong shading model
+![Step 7](./images/step7.png "Step 7")
