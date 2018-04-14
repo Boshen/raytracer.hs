@@ -35,17 +35,16 @@ data Intersection = Intersection Double Ray Sphere
 
 spheres :: [Sphere]
 spheres =
-    [ Sphere (V3 200 300 0) 100 (V3 1 0 0) 0.2 (V3 0.1 0.1 0.1) 10
-    , Sphere (V3 300 200 50) 50 (V3 0 1 0) 0.2 (V3 0.1 0.1 0.1) 10
-    , Sphere (V3 400 400 0) 100 (V3 0 0 1) 0.2 (V3 0.1 0.1 0.1) 10
-    , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255)) 0.2 (V3 1 1 1) 10
+    [ Sphere (V3 200 300 0) 100 (V3 1 0 0) 0.2 (V3 1 1 1) 30
+    , Sphere (V3 350 250 0) 50 (V3 0 1 0) 0.2 (V3 1 1 1) 30
+    , Sphere (V3 400 400 0) 100 (V3 0 0 1) 0.2 (V3 1 1 1) 30
+    , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255)) 0.2 (V3 1 1 1) 30
     ]
 
 lights :: [Light]
 lights =
-    [ Light (V3 0 240 100) (V3 1 1 1)
-    , Light (V3 3200 3000 (-1000)) (V3 0.6 0.6 0.6)
-    , Light (V3 600 0 (-100)) (V3 0.3 0.3 0.3)
+    [ Light (V3 2000 2000 3000) (V3 0.8 0.8 0.8)
+    , Light (V3 (-2000) (-2000) 3000) (V3 0.8 0.8 0.8)
     ]
 
 getImage :: Int -> Int -> RGB
@@ -78,15 +77,20 @@ trace level coef clr ray = if notHit || coef <= 0 || level >= 15
         newRay = Ray newStart (direction ray - (reflect *^ n))
 
 calcColor :: Intersection -> Light -> Color
-calcColor i@(Intersection _ (Ray _ r) sphere) (Light lightPos li) = c
+calcColor i@(Intersection _ (Ray _ r) sphere) (Light lightPos li) =
+    if inShadow then ambient else c
     where
         p = intersectionPoint i -- point
-        v = normalize $ r - p -- view
-        l = normalize $ lightPos - p -- light
+        v = normalize $ p - r -- view
+        l = normalize $ p - lightPos -- light
         n = normalize $ p - (spherePosition sphere) -- normal
 
+        -- when the object is blocked by another object
+        shadowRay = Ray (p + 0.001 *^ l) l
+        inShadow = isJust $ foldl (minIntersect shadowRay) Nothing (filter (/= sphere) spheres)
+
         -- when there is no light source
-        ambient = (V3 0.05 0.05 0.05) * (color sphere)
+        ambient = 0.1 *^ (color sphere)
 
         -- lambertian reflection is often used as a model for diffuse reflection
         -- object's from the real world reflect on average around 18% of the light they receive.

@@ -32,3 +32,7 @@
 * refactor code
 * complete with lambertian + Blinn–Phong shading model
 ![Step 7](./images/step7.png "Step 7")
+
+# step 8
+* add shadow
+![Step 8](./images/step8.png "Step 8")
