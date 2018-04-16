@@ -79,10 +79,17 @@ getPixel w h i = RGBPixel r g b
         (w', h') = (fromIntegral w, fromIntegral h)
         x = j' - h' / 2.0
         y = i' - w' / 2.0
-        dir = normalize $ (x *^ uu) + (y *^ vv) - (eyeDistance *^ ww)
-        ray = Ray eye dir
-        summedColor = trace 0 1 (V3 0 0 0) ray
-        (V3 r g b) = max 0 . round . min 255 . (*255) <$> snd summedColor
+        n = 5 -- sample points for anti-aliasing
+        samples = [((x' + 0.5) / n, (y' + 0.5) / n) | x' <- [0..n-1], y' <- [0..n-1]]
+        colors = getSample (x, y) <$> samples
+        (V3 r g b) = max 0 . round . min 255 . (*255) . (/(n * n)) <$> sum colors
+
+getSample :: (Double, Double) -> (Double, Double) -> Color
+getSample (x, y) (dx, dy) = snd $ trace 0 1 (V3 0 0 0) (Ray eye dir)
+    where
+        x' = x + dx
+        y' = y + dy
+        dir = normalize $ (x' *^ uu) + (y' *^ vv) - (eyeDistance *^ ww)
 
 trace :: Int -> Double -> Color -> Ray -> (Double, Color)
 trace level coef clr ray = if notHit || coef <= 0 || level >= 15
