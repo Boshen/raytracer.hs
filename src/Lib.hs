@@ -5,7 +5,7 @@ import Data.Vector.Storable (generate)
 import Linear.Metric
 import Linear.V3
 import Linear.Vector
-import Vision.Image
+import Vision.Image hiding (shape)
 import Vision.Primitive (ix2)
 
 type Color = V3 Double -- Color as an RGB value between 0 and 1
@@ -42,32 +42,45 @@ data Light = Light
 -- distance of intersection, between shape and ray
 data Intersection = Intersection Double Ray Shape
 
+eye, lookat, uu, vv, ww :: Vector
+eye = V3 0 0 (-100)
+lookat = V3 0 0 0
+ww = normalize $ eye - lookat
+vv = V3 0 1 0
+uu = normalize $ vv `cross` ww
+
+eyeDistance :: Double
+eyeDistance = 100.0
+
 shapes :: [Shape]
 shapes =
-    [ Sphere (V3 200 300 0) 100 (V3 1 0 0) 0.2 (V3 1 1 1) 30
-    , Sphere (V3 350 250 0) 50 (V3 0 1 0) 0.2 (V3 1 1 1) 30
-    , Sphere (V3 400 400 0) 100 (V3 0 0 1) 0.2 (V3 1 1 1) 30
-    , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255)) 0.2 (V3 1 1 1) 30
-    , Plane (V3 200 300 (100)) (V3 0 0 (-1)) (V3 0 0 0) 0.2 (V3 1 1 1) 0
+    [ Sphere (V3 0 0 0) 50 (V3 1 0 0) 0.2 (V3 1 1 1) 50
+    , Sphere (V3 150 0 0) 50 (V3 0 1 0) 0.2 (V3 1 1 1) 50
+    , Sphere (V3 0 200 0) 50 (V3 0 0 1) 0.2 (V3 1 1 1) 50
+    -- , Plane (V3 100 (-100) 0) vv (V3 0 0 0) 1 (V3 1 1 1) 0
     ]
 
 lights :: [Light]
 lights =
-    [ Light (V3 2000 2000 3000) (V3 0.8 0.8 0.8)
-    , Light (V3 (-2000) (-2000) 3000) (V3 0.8 0.8 0.8)
+    [ Light (V3 0 0 300) (V3 0.8 0.8 0.8)
+    , Light (V3 0 100 300) (V3 0.8 0.8 0.8)
     ]
 
 getImage :: Int -> Int -> RGB
 getImage w h = Manifest size pixels
     where
         size = ix2 h w
-        pixels = generate (w * h) $ getPixel w
+        pixels = generate (w * h) $ getPixel w h
 
-getPixel :: Int -> Int -> RGBPixel
-getPixel w i = RGBPixel r g b
+getPixel :: Int -> Int -> Int -> RGBPixel
+getPixel w h i = RGBPixel r g b
     where
-        (x, y) = (i `div` w, i `mod` w)
-        ray = Ray (V3 (fromIntegral x) (fromIntegral y) (-2000)) (V3 0 0 1)
+        (i', j') = (fromIntegral $ i `div` w, fromIntegral $ i `mod` w)
+        (w', h') = (fromIntegral w, fromIntegral h)
+        x = j' - h' / 2.0
+        y = i' - w' / 2.0
+        dir = normalize $ (x *^ uu) + (y *^ vv) - (eyeDistance *^ ww)
+        ray = Ray eye dir
         summedColor = trace 0 1 (V3 0 0 0) ray
         (V3 r g b) = max 0 . round . min 255 . (*255) <$> snd summedColor
 
