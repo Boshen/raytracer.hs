@@ -43,14 +43,14 @@ data Light = Light
 data Intersection = Intersection Double Ray Shape
 
 eye, lookat, uu, vv, ww :: Vector
-eye = V3 0 0 (-100)
-lookat = V3 0 0 0
+eye = V3 0 0 500
+lookat = V3 0 0 (-50)
 ww = normalize $ eye - lookat
 vv = V3 0 1 0
 uu = normalize $ vv `cross` ww
 
-eyeDistance :: Double
-eyeDistance = 100.0
+viewDistance :: Double
+viewDistance = 400
 
 shapes :: [Shape]
 shapes =
@@ -62,8 +62,7 @@ shapes =
 
 lights :: [Light]
 lights =
-    [ Light (V3 0 0 300) (V3 0.8 0.8 0.8)
-    , Light (V3 0 100 300) (V3 0.8 0.8 0.8)
+    [ Light (V3 1000 1000 (-1000)) (V3 0.8 0.8 0.8)
     ]
 
 getImage :: Int -> Int -> RGB
@@ -89,7 +88,7 @@ getSample (x, y) (dx, dy) = snd $ trace 0 1 (V3 0 0 0) (Ray eye dir)
     where
         x' = x + dx
         y' = y + dy
-        dir = normalize $ (x' *^ uu) + (y' *^ vv) - (eyeDistance *^ ww)
+        dir = normalize $ (x' *^ uu) + (y' *^ vv) - (viewDistance *^ ww)
 
 trace :: Int -> Double -> Color -> Ray -> (Double, Color)
 trace level coef clr ray = if notHit || coef <= 0 || level >= 15
