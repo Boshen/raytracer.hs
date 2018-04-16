@@ -16,8 +16,17 @@ data Ray = Ray
     , direction :: Vector
     }
 
-data Sphere = Sphere
-    { spherePosition :: Vector
+data Shape =
+    Plane
+    { position :: Vector
+    , planeNormal :: Vector
+    , color :: Color
+    , reflection :: Double
+    , specular :: Color
+    , shininess :: Double
+    }
+    | Sphere
+    { position :: Vector
     , radius :: Double
     , color :: Color
     , reflection :: Double
@@ -30,15 +39,16 @@ data Light = Light
     , lightIntensity :: Color
     }
 
--- distance of intersection, between sphere and ray
-data Intersection = Intersection Double Ray Sphere
+-- distance of intersection, between shape and ray
+data Intersection = Intersection Double Ray Shape
 
-spheres :: [Sphere]
-spheres =
+shapes :: [Shape]
+shapes =
     [ Sphere (V3 200 300 0) 100 (V3 1 0 0) 0.2 (V3 1 1 1) 30
     , Sphere (V3 350 250 0) 50 (V3 0 1 0) 0.2 (V3 1 1 1) 30
     , Sphere (V3 400 400 0) 100 (V3 0 0 1) 0.2 (V3 1 1 1) 30
     , Sphere (V3 540 140 0) 100 (V3 (242 / 255) (190 / 255) (69 / 255)) 0.2 (V3 1 1 1) 30
+    , Plane (V3 200 300 (100)) (V3 0 0 (-1)) (V3 0 0 0) 0.2 (V3 1 1 1) 0
     ]
 
 lights :: [Light]
@@ -64,41 +74,42 @@ getPixel w i = RGBPixel r g b
 trace :: Int -> Double -> Color -> Ray -> (Double, Color)
 trace level coef clr ray = if notHit || coef <= 0 || level >= 15
     then if notHit && level ==0 then (0, V3 1 1 1) else (0, clr)
-    else trace (level + 1) (coef * reflection sphere) (clr + shadeColor) newRay
+    else trace (level + 1) (coef * reflection shape) (clr + shadeColor) newRay
     where
-        int = foldl (minIntersect ray) Nothing spheres
+        int = foldl (minIntersect ray) Nothing shapes
         notHit = isNothing int
-        (Intersection d _ sphere) = fromJust int
+        (Intersection d _ shape) = fromJust int
         shadeColor = coef *^ (sum $ calcColor (fromJust int) <$> lights)
 
         newStart = (start ray) + (d *^ direction ray)
-        n = normalize $ newStart - (spherePosition sphere)
+        n = normalize $ newStart - (position shape)
         reflect = 2 * ((direction ray) `dot` n)
         newRay = Ray newStart (direction ray - (reflect *^ n))
 
 calcColor :: Intersection -> Light -> Color
-calcColor i@(Intersection _ (Ray _ r) sphere) (Light lightPos li) =
-    if inShadow then ambient else c
+calcColor i@(Intersection _ (Ray _ r) shape) (Light lightPos li) = if inShadow then ambient else c
     where
         p = intersectionPoint i -- point
         v = normalize $ p - r -- view
         l = normalize $ p - lightPos -- light
-        n = normalize $ p - (spherePosition sphere) -- normal
+        n = case shape of
+            (Plane _ normal _ _ _ _) -> normal
+            (Sphere pos _ _ _ _ _) -> normalize $ p - pos -- normal
 
         -- when the object is blocked by another object
         shadowRay = Ray (p + 0.001 *^ l) l
-        inShadow = isJust $ foldl (minIntersect shadowRay) Nothing (filter (/= sphere) spheres)
+        inShadow = isJust $ foldl (minIntersect shadowRay) Nothing (filter (/= shape) shapes)
 
         -- when there is no light source
-        ambient = 0.1 *^ (color sphere)
+        ambient = 0.1 *^ (color shape)
 
         -- lambertian reflection is often used as a model for diffuse reflection
         -- object's from the real world reflect on average around 18% of the light they receive.
-        lambertian = (max 0 (n `dot` l)) *^ li * (color sphere)
+        lambertian = (max 0 (n `dot` l)) *^ li * (color shape)
 
         -- Blinn–Phong shading model
         h = normalize $ l + v -- halfway vector between the viewer and light-source vectors
-        specularColor = ((max 0 (n `dot` h)) ** (shininess sphere)) *^ li * (specular sphere)
+        specularColor = ((max 0 (n `dot` h)) ** (shininess shape)) *^ li * (specular shape)
 
         -- total color
         c = ambient + lambertian + specularColor
@@ -106,20 +117,22 @@ calcColor i@(Intersection _ (Ray _ r) sphere) (Light lightPos li) =
 intersectionPoint :: Intersection -> Color
 intersectionPoint (Intersection d (Ray strt dir) _) = strt + ((*d) <$> dir)
 
-minIntersect :: Ray -> (Maybe Intersection) -> Sphere -> (Maybe Intersection)
-minIntersect ray i sphere = if d > 0 && (isNothing i || d < dist)
-    then Just (Intersection d ray sphere)
+minIntersect :: Ray -> (Maybe Intersection) -> Shape -> (Maybe Intersection)
+minIntersect ray i shape = if d > 0 && (isNothing i || d < dist)
+    then Just (Intersection d ray shape)
     else i
         where
             (Intersection dist _ _) = fromJust i
-            d = intersect ray sphere
+            d = intersect ray shape
 
-intersect :: Ray -> Sphere -> Double
-intersect ray sphere = if null roots then 0 else minimum roots
+intersect :: Ray -> Shape -> Double
+intersect (Ray s dir) (Plane p n _ _ _ _) = if t <= 0 then 0 else t
     where
-        dir = direction ray
-        r = radius sphere
-        d = (start ray) - (spherePosition sphere)
+        t = ((p - s) `dot` n) / (dir `dot` n)
+
+intersect (Ray s dir) (Sphere p r _ _ _ _) = if null roots then 0 else minimum roots
+    where
+        d = s - p
         roots = filter (> 10**(-6)) $ solveq (dir `dot` dir, 2 * dir `dot` d, d `dot` d - r * r)
 
 solveq :: (Double, Double, Double) ->[Double]
