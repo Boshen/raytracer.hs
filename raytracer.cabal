@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 299f5070a57f617728334bc86e3a12e44ab6f4dcbf95769ed837b8f04bb4a899
+-- hash: caa0594f7c33ebebbb06fdc2e08cadf991e9c17cb6b93303ffcb2ae0959dc2b7
 
 name:           raytracer
 version:        0.1.0.0
@@ -36,6 +36,8 @@ library
     , repa
   exposed-modules:
       Lib
+      Object
+      Types
   other-modules:
       Paths_raytracer
   default-language: Haskell2010

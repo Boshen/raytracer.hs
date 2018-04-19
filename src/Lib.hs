@@ -10,34 +10,15 @@ import Data.Array.Repa (Array, DIM2, D, Z (..), (:.)(..))
 import qualified Data.Array.Repa as R
 import Codec.Picture (Pixel8)
 
+import Types
+import Object
+
 type RGB8 = (Pixel8, Pixel8, Pixel8)
-type Color = V3 Double -- Color as an RGB value between 0 and 1
-type Vector = V3 Double
 
 data Ray = Ray
     { start :: Vector
     , direction :: Vector
     }
-
-data Shape =
-    Plane
-    { position :: Vector
-    , planeNormal :: Vector
-    , diffuseReflection :: Double
-    , diffuseColor :: Color
-    , reflection :: Double
-    , specularRefection :: Double -- k_s [0, 1]
-    , shininess :: Double
-    }
-    | Sphere
-    { position :: Vector
-    , radius :: Double
-    , diffuseReflection :: Double -- k_d in [0, 1], == ka, ambient reflection coefficient
-    , diffuseColor :: Color -- c_d; rho_d = k_d * c_d
-    , reflection :: Double -- [0, 1]
-    , specularRefection :: Double -- k_s [0, 1]
-    , shininess :: Double -- [0, inf)
-    } deriving (Eq)
 
 data Light =
     AmbientLight
@@ -56,7 +37,7 @@ data Light =
     }
 
 -- distance of intersection, between shape and ray
-data Intersection = Intersection Double Ray Shape
+data Intersection = Intersection Double Ray Object
 
 eye, lookat, uu, vv, ww :: Vector
 eye = V3 0 (-100) 500
@@ -68,12 +49,12 @@ uu = normalize $ vv `cross` ww
 viewDistance :: Double
 viewDistance = 400
 
-shapes :: [Shape]
+shapes :: [Object]
 shapes =
-    [ Sphere (V3 0 50 0) 50 0.8 (V3 1 0 0) 0.2 0.2 20
-    , Sphere (V3 150 50 0) 50 0.8 (V3 0 1 0) 0.2 0.2 20
-    , Sphere (V3 (-100) 50 (-300)) 50 0.8 (V3 0 0 1) 0.2 0.2 20
-    , Plane  (V3 0 100 0) vv 0.8 (V3 1 1 1) 0.5 0.5 1
+    [ Sphere (V3 0 50 0) 50 (Material 0.8 (V3 1 0 0) 0.2 0.2 20)
+    , Sphere (V3 150 50 0) 50 (Material 0.8 (V3 0 1 0) 0.2 0.2 20)
+    , Sphere (V3 (-100) 50 (-300)) 50 (Material 0.8 (V3 0 0 1) 0.2 0.2 20)
+    , Plane  (V3 0 100 0) vv (Material 0.8 (V3 1 1 1) 0.5 0.5 1)
     ]
 
 lights :: [Light]
@@ -108,7 +89,7 @@ getSample (x, y) (dx, dy) = snd $ trace 0 1 (V3 0 0 0) (Ray eye dir)
 trace :: Int -> Double -> Color -> Ray -> (Double, Color)
 trace level coef clr ray = if notHit || coef <= 0 || level >= 15
     then if notHit && level == 0 then (0, V3 0 0 0) else (0, clr)
-    else trace (level + 1) (coef * reflection shape) (clr + shadeColor) newRay
+    else trace (level + 1) (coef * (reflection . material) shape) (clr + shadeColor) newRay
     where
         int = foldl (minIntersect ray) Nothing shapes
         notHit = isNothing int
@@ -123,8 +104,8 @@ trace level coef clr ray = if notHit || coef <= 0 || level >= 15
 calcColor :: Intersection -> Light -> Color
 calcColor (Intersection _ _ shape) (AmbientLight l_s c_l) = (k_d *^ c_d) * (l_s *^ c_l)
     where
-        k_d = diffuseReflection shape
-        c_d = diffuseColor shape
+        k_d = diffuseReflection . material $ shape
+        c_d = diffuseColor . material $ shape
 
 calcColor i@(Intersection _ _ shape) (DirectionalLight l_s c_l l) =
     if n `dot` l > 0
@@ -132,25 +113,25 @@ calcColor i@(Intersection _ _ shape) (DirectionalLight l_s c_l l) =
     else V3 0 0 0
     where
         p = intersectionPoint i -- point
-        k_d = diffuseReflection shape
-        c_d = diffuseColor shape
+        k_d = diffuseReflection . material $  shape
+        c_d = diffuseColor . material $  shape
         n = case shape of
-            (Plane _ normal _ _ _ _ _) -> normal
-            (Sphere pos _ _ _ _ _ _) -> normalize $ p - pos -- normal
+            (Plane _ normal _) -> normal
+            (Sphere pos _ _) -> normalize $ p - pos -- normal
 
 calcColor i@(Intersection _ (Ray s _) shape) (PointLight l_s c_l lightPos) =
     if inShadow then V3 0 0 0 else c
     where
         p = intersectionPoint i -- point
-        k_d = diffuseReflection shape
-        c_d = diffuseColor shape
-        k_s = specularRefection shape
-        e = shininess shape
+        k_d = diffuseReflection . material $ shape
+        c_d = diffuseColor . material $ shape
+        k_s = specularRefection . material $ shape
+        e = shininess . material $ shape
         w = normalize $ p - s
         l = normalize $ p - lightPos -- light
         n = case shape of
-            (Plane _ normal _ _ _ _ _) -> normal
-            (Sphere pos _ _ _ _ _ _) -> normalize $ p - pos-- normal
+            (Plane _ normal _ ) -> normal
+            (Sphere pos _ _) -> normalize $ p - pos-- normal
 
         -- when the object is blocked by another object
         shadowRay = Ray (p + 0.001 *^ l) l
@@ -175,7 +156,7 @@ calcColor i@(Intersection _ (Ray s _) shape) (PointLight l_s c_l lightPos) =
 intersectionPoint :: Intersection -> Color
 intersectionPoint (Intersection d (Ray strt dir) _) = strt + ((*d) <$> dir)
 
-minIntersect :: Ray -> (Maybe Intersection) -> Shape -> (Maybe Intersection)
+minIntersect :: Ray -> (Maybe Intersection) -> Object -> (Maybe Intersection)
 minIntersect ray i shape = if d > 0 && (isNothing i || d < dist)
     then Just (Intersection d ray shape)
     else i
@@ -183,12 +164,12 @@ minIntersect ray i shape = if d > 0 && (isNothing i || d < dist)
             (Intersection dist _ _) = fromJust i
             d = intersect ray shape
 
-intersect :: Ray -> Shape -> Double
-intersect (Ray s dir) (Plane p n _ _ _ _ _) = if t <= 0 then 0 else t
+intersect :: Ray -> Object -> Double
+intersect (Ray s dir) (Plane p n _) = if t <= 0 then 0 else t
     where
         t = ((p - s) `dot` n) / (dir `dot` n)
 
-intersect (Ray s dir) (Sphere p r _ _ _ _ _) = if null roots then 0 else minimum roots
+intersect (Ray s dir) (Sphere p r _) = if null roots then 0 else minimum roots
     where
         d = s - p
         roots = filter (> 10**(-6)) $ solveq (dir `dot` dir, 2 * dir `dot` d, d `dot` d - r * r)
