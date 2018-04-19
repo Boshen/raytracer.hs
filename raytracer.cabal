@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: caa0594f7c33ebebbb06fdc2e08cadf991e9c17cb6b93303ffcb2ae0959dc2b7
+-- hash: 9e9492aa8130e843311978a0d2d76cd8ad637483d1bc4c8aa1b248df3758d65f
 
 name:           raytracer
 version:        0.1.0.0
@@ -37,6 +37,7 @@ library
   exposed-modules:
       Lib
       Object
+      Ray
       Types
   other-modules:
       Paths_raytracer

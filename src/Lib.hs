@@ -2,7 +2,10 @@
 
 module Lib (getImage, RGB8) where
 
+import Control.Applicative
+import Data.Foldable
 import Data.Maybe
+import Data.Ord
 import Linear.Metric
 import Linear.V3
 import Linear.Vector
@@ -12,13 +15,9 @@ import Codec.Picture (Pixel8)
 
 import Types
 import Object
+import Ray
 
 type RGB8 = (Pixel8, Pixel8, Pixel8)
-
-data Ray = Ray
-    { start :: Vector
-    , direction :: Vector
-    }
 
 data Light =
     AmbientLight
@@ -49,8 +48,8 @@ uu = normalize $ vv `cross` ww
 viewDistance :: Double
 viewDistance = 400
 
-shapes :: [Object]
-shapes =
+objects :: [Object]
+objects =
     [ Sphere (V3 0 50 0) 50 (Material 0.8 (V3 1 0 0) 0.2 0.2 20)
     , Sphere (V3 150 50 0) 50 (Material 0.8 (V3 0 1 0) 0.2 0.2 20)
     , Sphere (V3 (-100) 50 (-300)) 50 (Material 0.8 (V3 0 0 1) 0.2 0.2 20)
@@ -91,51 +90,43 @@ trace level coef clr ray = if notHit || coef <= 0 || level >= 15
     then if notHit && level == 0 then (0, V3 0 0 0) else (0, clr)
     else trace (level + 1) (coef * (reflection . material) shape) (clr + shadeColor) newRay
     where
-        int = foldl (minIntersect ray) Nothing shapes
+        int = minIntersect ray objects
         notHit = isNothing int
-        (Intersection d _ shape) = fromJust int
-        shadeColor = coef *^ (sum $ calcColor (fromJust int) <$> lights)
+        (shape, rayHit) = fromJust int
+        shadeColor = coef *^ (sum $ calcColor shape rayHit <$> lights)
 
-        newStart = (start ray) + (d *^ direction ray)
+        newStart = (start ray) + ((hitDist rayHit) *^ direction ray)
         n = normalize $ newStart - (position shape)
         reflect = 2 * ((direction ray) `dot` n)
         newRay = Ray newStart (direction ray - (reflect *^ n))
 
-calcColor :: Intersection -> Light -> Color
-calcColor (Intersection _ _ shape) (AmbientLight l_s c_l) = (k_d *^ c_d) * (l_s *^ c_l)
+calcColor :: Object -> RayHit -> Light -> Color
+calcColor object _ (AmbientLight l_s c_l) = (k_d *^ c_d) * (l_s *^ c_l)
     where
-        k_d = diffuseReflection . material $ shape
-        c_d = diffuseColor . material $ shape
+        k_d = diffuseReflection . material $ object
+        c_d = diffuseColor . material $ object
 
-calcColor i@(Intersection _ _ shape) (DirectionalLight l_s c_l l) =
+calcColor object (RayHit _ _ n _) (DirectionalLight l_s c_l l) =
     if n `dot` l > 0
     then (k_d *^ c_d ^/ 3.14) ^* (n `dot` l) * (l_s *^ c_l)
     else V3 0 0 0
     where
-        p = intersectionPoint i -- point
-        k_d = diffuseReflection . material $  shape
-        c_d = diffuseColor . material $  shape
-        n = case shape of
-            (Plane _ normal _) -> normal
-            (Sphere pos _ _) -> normalize $ p - pos -- normal
+        k_d = diffuseReflection . material $ object
+        c_d = diffuseColor . material $ object
 
-calcColor i@(Intersection _ (Ray s _) shape) (PointLight l_s c_l lightPos) =
+calcColor object (RayHit (Ray s _) p n _) (PointLight l_s c_l lightPos) =
     if inShadow then V3 0 0 0 else c
     where
-        p = intersectionPoint i -- point
-        k_d = diffuseReflection . material $ shape
-        c_d = diffuseColor . material $ shape
-        k_s = specularRefection . material $ shape
-        e = shininess . material $ shape
+        k_d = diffuseReflection . material $ object
+        c_d = diffuseColor . material $ object
+        k_s = specularRefection . material $ object
+        e = shininess . material $ object
         w = normalize $ p - s
         l = normalize $ p - lightPos -- light
-        n = case shape of
-            (Plane _ normal _ ) -> normal
-            (Sphere pos _ _) -> normalize $ p - pos-- normal
 
         -- when the object is blocked by another object
         shadowRay = Ray (p + 0.001 *^ l) l
-        inShadow = isJust $ foldl (minIntersect shadowRay) Nothing (filter (/= shape) shapes)
+        inShadow = isJust $ minIntersect shadowRay (filter (/= object) objects)
 
         -- lambertian reflection is often used as a model for diffuse reflection
         -- object's from the real world reflect on average around 18% of the light they receive.
@@ -153,31 +144,11 @@ calcColor i@(Intersection _ (Ray s _) shape) (PointLight l_s c_l lightPos) =
         -- total color
         c = lambertian + spec
 
-intersectionPoint :: Intersection -> Color
-intersectionPoint (Intersection d (Ray strt dir) _) = strt + ((*d) <$> dir)
-
-minIntersect :: Ray -> (Maybe Intersection) -> Object -> (Maybe Intersection)
-minIntersect ray i shape = if d > 0 && (isNothing i || d < dist)
-    then Just (Intersection d ray shape)
-    else i
+minIntersect :: Intersectable a => Ray -> [a] -> Maybe (a, RayHit)
+minIntersect ray os
+    | null objects = Nothing
+    | null hits = Nothing
+    | otherwise = Just $ minimumBy (comparing $ hitDist . snd) hits
         where
-            (Intersection dist _ _) = fromJust i
-            d = intersect ray shape
-
-intersect :: Ray -> Object -> Double
-intersect (Ray s dir) (Plane p n _) = if t <= 0 then 0 else t
-    where
-        t = ((p - s) `dot` n) / (dir `dot` n)
-
-intersect (Ray s dir) (Sphere p r _) = if null roots then 0 else minimum roots
-    where
-        d = s - p
-        roots = filter (> 10**(-6)) $ solveq (dir `dot` dir, 2 * dir `dot` d, d `dot` d - r * r)
-
-solveq :: (Double, Double, Double) ->[Double]
-solveq (a, b, c)
-    | (d < 0) = []
-    | (d > 0) = [(-b - sqrt d) / (2 * a), (-b + sqrt d) / (2 * a)]
-    | otherwise = [-b / (2 * a)]
-    where
-        d = b * b - 4 * a * c
+            maybeHits = intersects ray <$> os
+            hits = catMaybes $ zipWith (liftA2 (,) . Just) os maybeHits
