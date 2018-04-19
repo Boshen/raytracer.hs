@@ -1,15 +1,19 @@
 module Main where
 
-import Vision.Image.Storage.DevIL (Autodetect (..), save)
+import Codec.Picture
+import Data.Array.Repa
 
 import Lib
 
+toImage :: Int -> Int -> Array U DIM2 RGB8 -> Image PixelRGB8
+toImage w h a = generateImage gen w h
+  where
+    gen x y =
+        let (r, g, b) = a ! (Z :. x :. y)
+        in PixelRGB8 r g b
+
 main :: IO ()
 main = do
-    mErr <- save Autodetect "test.png" $ getImage 500 500
-    case mErr of
-        Nothing  ->
-            putStrLn "Success."
-        Just err -> do
-            putStrLn "Unable to save the image:"
-            print err
+    (w, h) <- return (500, 500)
+    img <- computeUnboxedP $ getImage w h
+    savePngImage "test.png" . ImageRGB8 . (toImage w h) $ img

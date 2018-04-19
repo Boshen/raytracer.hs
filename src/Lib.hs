@@ -1,13 +1,16 @@
-module Lib (getImage) where
+{-# LANGUAGE TypeOperators   #-}
+
+module Lib (getImage, RGB8) where
 
 import Data.Maybe
-import Data.Vector.Storable (generate)
 import Linear.Metric
 import Linear.V3
 import Linear.Vector
-import Vision.Image hiding (shape)
-import Vision.Primitive (ix2)
+import Data.Array.Repa (Array, DIM2, D, Z (..), (:.)(..))
+import qualified Data.Array.Repa as R
+import Codec.Picture (Pixel8)
 
+type RGB8 = (Pixel8, Pixel8, Pixel8)
 type Color = V3 Double -- Color as an RGB value between 0 and 1
 type Vector = V3 Double
 
@@ -80,20 +83,17 @@ lights =
     , PointLight 3 (V3 1 1 1) (V3 (100) (500) (-200))
     ]
 
-getImage :: Int -> Int -> RGB
-getImage w h = Manifest size pixels
-    where
-        size = ix2 h w
-        pixels = generate (w * h) $ getPixel w h
+getImage :: Int -> Int -> Array D DIM2 RGB8
+getImage w h = R.fromFunction (Z :. w :. h) $ getPixel w h
 
-getPixel :: Int -> Int -> Int -> RGBPixel
-getPixel w h i = RGBPixel r g b
+getPixel :: Int -> Int -> (Z :. Int :. Int) -> RGB8
+getPixel w h (Z :. j :. i) = (r, g, b)
     where
-        (i', j') = (fromIntegral $ i `div` w, fromIntegral $ i `mod` w)
+        (i', j') = (fromIntegral i, fromIntegral j)
         (w', h') = (fromIntegral w, fromIntegral h)
         x = j' - h' / 2.0
         y = i' - w' / 2.0
-        n = 1 -- sample points for anti-aliasing
+        n = 5 -- sample points for anti-aliasing
         samples = [((x' + 0.5) / n, (y' + 0.5) / n) | x' <- [0..n-1], y' <- [0..n-1]]
         colors = getSample (x, y) <$> samples
         (V3 r g b) = max 0 . round . min 255 . (*255) . (/(n * n)) <$> sum colors

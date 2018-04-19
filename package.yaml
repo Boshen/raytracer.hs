@@ -20,18 +20,17 @@ extra-source-files:
 description:         Please see the README on Github at <https://github.com/boshen/raytracer.hs#readme>
 
 dependencies:
-- base >= 4.7 && < 5
-- friday
-- friday-devil
-- vector
+- base
 - linear
-- mtl
+- repa
+- JuicyPixels
 
 library:
   source-dirs: src
   ghc-options:
   - -Wall
   - -Wno-unused-top-binds
+  - -O2
 
 executables:
   raytracer-exe:

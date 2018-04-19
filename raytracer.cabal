@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3b650d822c48c5bd0ec3ae69d350e2154a3d53060d98d1b8545b4bf062c46ad0
+-- hash: 299f5070a57f617728334bc86e3a12e44ab6f4dcbf95769ed837b8f04bb4a899
 
 name:           raytracer
 version:        0.1.0.0
@@ -28,14 +28,12 @@ source-repository head
 library
   hs-source-dirs:
       src
-  ghc-options: -Wall -Wno-unused-top-binds
+  ghc-options: -Wall -Wno-unused-top-binds -O2
   build-depends:
-      base >=4.7 && <5
-    , friday
-    , friday-devil
+      JuicyPixels
+    , base
     , linear
-    , mtl
-    , vector
+    , repa
   exposed-modules:
       Lib
   other-modules:
@@ -48,13 +46,11 @@ executable raytracer-exe
       app
   ghc-options: -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , friday
-    , friday-devil
+      JuicyPixels
+    , base
     , linear
-    , mtl
     , raytracer
-    , vector
+    , repa
   other-modules:
       Paths_raytracer
   default-language: Haskell2010
@@ -66,13 +62,11 @@ test-suite raytracer-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , friday
-    , friday-devil
+      JuicyPixels
+    , base
     , linear
-    , mtl
     , raytracer
-    , vector
+    , repa
   other-modules:
       Paths_raytracer
   default-language: Haskell2010

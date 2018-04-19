@@ -1,5 +1,10 @@
 # raytracer
 
+```
+stack build
+stack exec raytracer-exe +RTS -N4
+```
+
 # step 1
 * has a ray to sphere intersection detection
 * output image to jpeg
