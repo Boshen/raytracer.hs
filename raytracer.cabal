@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9e9492aa8130e843311978a0d2d76cd8ad637483d1bc4c8aa1b248df3758d65f
+-- hash: 3d57730a12e5961f48a8b138de5b225f9537e067fba80564d0ca0c356f4a316f
 
 name:           raytracer
 version:        0.1.0.0
@@ -32,6 +32,7 @@ library
   build-depends:
       JuicyPixels
     , base
+    , lens
     , linear
     , repa
   exposed-modules:
@@ -51,6 +52,7 @@ executable raytracer-exe
   build-depends:
       JuicyPixels
     , base
+    , lens
     , linear
     , raytracer
     , repa
@@ -67,6 +69,7 @@ test-suite raytracer-test
   build-depends:
       JuicyPixels
     , base
+    , lens
     , linear
     , raytracer
     , repa

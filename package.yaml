@@ -21,6 +21,7 @@ description:         Please see the README on Github at <https://github.com/bosh
 
 dependencies:
 - base
+- lens
 - linear
 - repa
 - JuicyPixels

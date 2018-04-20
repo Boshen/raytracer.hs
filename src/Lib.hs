@@ -2,6 +2,7 @@
 
 module Lib (getImage, RGB8) where
 
+import Control.Lens
 import Control.Applicative
 import Data.Foldable
 import Data.Maybe
@@ -35,9 +36,6 @@ data Light =
     , lightLocation :: Vector
     }
 
--- distance of intersection, between shape and ray
-data Intersection = Intersection Double Ray Object
-
 eye, lookat, uu, vv, ww :: Vector
 eye = V3 0 (-100) 500
 lookat = V3 0 0 (-50)
@@ -50,16 +48,16 @@ viewDistance = 400
 
 objects :: [Object]
 objects =
-    [ Sphere (V3 0 50 0) 50 (Material 0.8 (V3 1 0 0) 0.2 0.2 20)
-    , Sphere (V3 150 50 0) 50 (Material 0.8 (V3 0 1 0) 0.2 0.2 20)
-    , Sphere (V3 (-100) 50 (-300)) 50 (Material 0.8 (V3 0 0 1) 0.2 0.2 20)
-    , Plane  (V3 0 100 0) vv (Material 0.8 (V3 1 1 1) 0.5 0.5 1)
+    [ Sphere (V3 0 50 0) 50 (Material 0.8 (V3 1 0 0) 0 0.2 20)
+    , Sphere (V3 150 50 0) 50 (Material 0.8 (V3 0 1 0) 0 0.2 20)
+    , Sphere (V3 (-100) 50 (-300)) 50 (Material 0.8 (V3 0 0 1) 0 0.2 20)
+    , Plane  (V3 0 100 0) (V3 0 (-1) 0) (Material 0.5 (V3 0.5 0.5 0.5) 0.5 0 0)
     ]
 
 lights :: [Light]
 lights =
     [ AmbientLight 0.1 (V3 0.05 0.05 0.05)
-    , DirectionalLight 2 (V3 1 1 1) (V3 1 (-1) 0)
+    , DirectionalLight 1 (V3 1 1 1) (V3 1 (-1) 0)
     , PointLight 3 (V3 1 1 1) (V3 (100) (500) (-200))
     ]
 
@@ -79,48 +77,47 @@ getPixel w h (Z :. j :. i) = (r, g, b)
         (V3 r g b) = max 0 . round . min 255 . (*255) . (/(n * n)) <$> sum colors
 
 getSample :: (Double, Double) -> (Double, Double) -> Color
-getSample (x, y) (dx, dy) = snd $ trace 0 1 (V3 0 0 0) (Ray eye dir)
+getSample (x, y) (dx, dy) = snd $ trace 0 1 (V3 0 0 0) (Ray eye d)
     where
         x' = x + dx
         y' = y + dy
-        dir = normalize $ (x' *^ uu) + (y' *^ vv) - (viewDistance *^ ww)
+        d = normalize $ (x' *^ uu) + (y' *^ vv) - (viewDistance *^ ww)
 
 trace :: Int -> Double -> Color -> Ray -> (Double, Color)
 trace level coef clr ray = if notHit || coef <= 0 || level >= 15
     then if notHit && level == 0 then (0, V3 0 0 0) else (0, clr)
-    else trace (level + 1) (coef * (reflection . material) shape) (clr + shadeColor) newRay
+    else trace (level + 1) (coef * object^.material^.reflection) (clr + shadeColor) newRay
     where
         int = minIntersect ray objects
         notHit = isNothing int
-        (shape, rayHit) = fromJust int
-        shadeColor = coef *^ (sum $ calcColor shape rayHit <$> lights)
+        (object, rayHit) = fromJust int
+        shadeColor = coef *^ (sum $ calcColor object rayHit <$> lights)
 
-        newStart = (start ray) + ((hitDist rayHit) *^ direction ray)
-        n = normalize $ newStart - (position shape)
-        reflect = 2 * ((direction ray) `dot` n)
-        newRay = Ray newStart (direction ray - (reflect *^ n))
+        n = rayHit^.hitNormal
+        reflect = 2 * ((ray^.rayDirection) `dot` n)
+        newRay = Ray (rayHit^.hitPoint) ((ray^.rayDirection) - (reflect *^ n))
 
 calcColor :: Object -> RayHit -> Light -> Color
 calcColor object _ (AmbientLight l_s c_l) = (k_d *^ c_d) * (l_s *^ c_l)
     where
-        k_d = diffuseReflection . material $ object
-        c_d = diffuseColor . material $ object
+        k_d = object^.material^.diffuseReflection
+        c_d = object^.material^.diffuseColor
 
 calcColor object (RayHit _ _ n _) (DirectionalLight l_s c_l l) =
     if n `dot` l > 0
     then (k_d *^ c_d ^/ 3.14) ^* (n `dot` l) * (l_s *^ c_l)
     else V3 0 0 0
     where
-        k_d = diffuseReflection . material $ object
-        c_d = diffuseColor . material $ object
+        k_d = object^.material.diffuseReflection
+        c_d = object^.material.diffuseColor
 
 calcColor object (RayHit (Ray s _) p n _) (PointLight l_s c_l lightPos) =
     if inShadow then V3 0 0 0 else c
     where
-        k_d = diffuseReflection . material $ object
-        c_d = diffuseColor . material $ object
-        k_s = specularRefection . material $ object
-        e = shininess . material $ object
+        k_d = object^.material^.diffuseReflection
+        c_d = object^.material^.diffuseColor
+        k_s = object^.material^.specularRefection
+        e = object^.material^.shininess
         w = normalize $ p - s
         l = normalize $ p - lightPos -- light
 
@@ -148,7 +145,7 @@ minIntersect :: Intersectable a => Ray -> [a] -> Maybe (a, RayHit)
 minIntersect ray os
     | null objects = Nothing
     | null hits = Nothing
-    | otherwise = Just $ minimumBy (comparing $ hitDist . snd) hits
+    | otherwise = Just $ minimumBy (comparing $ view hitDistance . snd) hits
         where
             maybeHits = intersects ray <$> os
             hits = catMaybes $ zipWith (liftA2 (,) . Just) os maybeHits

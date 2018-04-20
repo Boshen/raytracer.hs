@@ -41,3 +41,8 @@ stack exec raytracer-exe +RTS -N4
 # step 8
 * add shadow
 ![Step 8](./images/step8.png "Step 8")
+
+# step 9
+* add antialiasing
+* add plane
+![Step 9](./images/step9.png "Step 9")
