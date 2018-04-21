@@ -106,8 +106,8 @@ calcShade object (RayHit (Ray s _) p n _) light = case light of
             k_s = object^.material^.specularRefection
             e = object^.material^.shininess
             w = normalize $ p - s -- view direction
-            r = 2 * (n `dot` l) *^ n - l -- reflection direction
-            specularAmount = max 0 $ r `dot` w
+            r = 2 * diffuseAmount *^ n - l -- reflection direction
+            specularAmount = r `dot` w
             specular = k_s * (specularAmount ** e) * diffuseAmount *^ (l_s *^ c_l)
 
     where
@@ -116,7 +116,7 @@ calcShade object (RayHit (Ray s _) p n _) light = case light of
 
 minIntersect :: Intersectable a => Ray -> [a] -> Maybe (a, RayHit)
 minIntersect ray os
-    | null objects = Nothing
+    | null os = Nothing
     | null hits = Nothing
     | otherwise = Just $ minimumBy (comparing $ view hitDistance . snd) hits
         where
