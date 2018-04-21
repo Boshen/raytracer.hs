@@ -1,6 +1,7 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators   #-}
 
-module Lib (getImage, RGB8) where
+module Lib where
 
 import Control.Lens
 import Control.Applicative
@@ -28,63 +29,57 @@ uu = normalize $ vv `cross` ww
 viewDistance :: Double
 viewDistance = 400
 
-objects :: [Object]
-objects =
-    [ Sphere (V3 0 50 0) 50 (Material 0.8 (V3 1 0 0) 0 0.2 20)
-    , Sphere (V3 150 50 0) 50 (Material 0.8 (V3 0 1 0) 0 0.2 20)
-    , Sphere (V3 (-100) 50 (-300)) 50 (Material 0.8 (V3 0 0 1) 0 0.2 20)
-    , Plane  (V3 0 100 0) (V3 0 (-1) 0) (Material 0.5 (V3 0.5 0.5 0.5) 0.5 0 0)
-    ]
+data Scene = Scene
+    { _width :: Int
+    , _height :: Int
+    , _objects :: [Object]
+    , _lights :: [Light]
+    }
+makeLenses ''Scene
 
-lights :: [Light]
-lights =
-    [ AmbientLight 0.1 (V3 0.05 0.05 0.05)
-    , DirectionalLight 1 (V3 1 1 1) (V3 1 (-1) 0)
-    , PointLight 3 (V3 1 1 1) (V3 (100) (500) (-200))
-    ]
+getImage :: Scene -> Array D DIM2 RGB8
+getImage scene = R.fromFunction (Z :. (scene^.width) :. (scene^.height)) $ getPixel scene
 
-getImage :: Int -> Int -> Array D DIM2 RGB8
-getImage w h = R.fromFunction (Z :. w :. h) $ getPixel w h
-
-getPixel :: Int -> Int -> (Z :. Int :. Int) -> RGB8
-getPixel w h (Z :. j :. i) = (r, g, b)
+getPixel :: Scene -> (Z :. Int :. Int) -> RGB8
+getPixel scene (Z :. j :. i) = (r, g, b)
     where
         (i', j') = (fromIntegral i, fromIntegral j)
-        (w', h') = (fromIntegral w, fromIntegral h)
+        (w', h') = (fromIntegral $ scene^.width, fromIntegral $ scene^.height)
         x = j' - h' / 2.0
         y = i' - w' / 2.0
         n = 5 -- sample points for anti-aliasing
         samples = [((x' + 0.5) / n, (y' + 0.5) / n) | x' <- [0..n-1], y' <- [0..n-1]]
-        colors = getSample (x, y) <$> samples
+        colors = getSample scene (x, y) <$> samples
         (V3 r g b) = max 0 . round . min 255 . (*255) . (/(n * n)) <$> sum colors
 
-getSample :: (Double, Double) -> (Double, Double) -> Color
-getSample (x, y) (dx, dy) = trace (Ray eye d) 1 (V3 0 0 0)
+getSample :: Scene -> (Double, Double) -> (Double, Double) -> Color
+getSample scene (x, y) (dx, dy) = trace scene (Ray eye d) 1 (V3 0 0 0)
     where
         x' = x + dx
         y' = y + dy
         d = normalize $ (x' *^ uu) + (y' *^ vv) - (viewDistance *^ ww)
 
-trace :: Ray -> Int -> Color -> Color
-trace ray depth color = case minIntersect ray objects of
+trace :: Scene -> Ray -> Int -> Color -> Color
+trace scene ray depth color = case minIntersect ray (scene^.objects) of
     Nothing -> V3 0 0 0
     Just (object, rayHit) -> shadeColor + reflectionColor
         where
-            shadeColor = sum $ calcShade object rayHit <$> lights
-            reflectionColor = calcReflection object ray rayHit depth color
+            shadeColor = sum $ calcShade scene object rayHit <$> (scene^.lights)
+            reflectionColor = calcReflection scene object ray rayHit depth color
 
-calcReflection :: Object -> Ray -> RayHit -> Int -> Color -> Color
-calcReflection object ray rayHit depth color
-    | reflectColor <= 0 || depth >= 15 = color
-    | otherwise = (object^.material^.reflection) *^ reflectColor + color
+calcReflection :: Scene -> Object -> Ray -> RayHit -> Int -> Color -> Color
+calcReflection scene object ray rayHit depth color
+    | depth >= 15 = color
+    | reflect == 0 = color
+    | otherwise =  reflect *^ reflectColor + color
     where
+        reflect = object^.material^.reflection
         reflectDir = 2 * ((ray^.rayDirection) `dot` (rayHit^.hitNormal))
         reflectRay = Ray (rayHit^.hitPoint) ((ray^.rayDirection) - (reflectDir *^ (rayHit^.hitNormal)))
-        reflectColor = trace reflectRay (depth + 1) color
+        reflectColor = trace scene reflectRay (depth + 1) color
 
-calcShade :: Object -> RayHit -> Light -> Color
-
-calcShade object (RayHit (Ray s _) p n _) light = case light of
+calcShade :: Scene -> Object -> RayHit -> Light -> Color
+calcShade scene object (RayHit (Ray s _) p n _) light = case light of
     AmbientLight l_s c_l ->
         (k_d *^ c_d) * (l_s *^ c_l)
 
@@ -95,7 +90,7 @@ calcShade object (RayHit (Ray s _) p n _) light = case light of
         where
             -- when the object is blocked by another object
             shadowRay = Ray (p + 0.001 *^ l) l
-            inShadow = isJust $ minIntersect shadowRay (filter (/= object) objects)
+            inShadow = isJust $ minIntersect shadowRay (filter (/= object) (scene^.objects))
 
             -- Lambertian shading model
             l = normalize $ p - lightPos -- light direction
