@@ -83,48 +83,36 @@ calcReflection object ray rayHit depth color
         reflectColor = trace reflectRay (depth + 1) color
 
 calcShade :: Object -> RayHit -> Light -> Color
-calcShade object _ (AmbientLight l_s c_l) = (k_d *^ c_d) * (l_s *^ c_l)
+
+calcShade object (RayHit (Ray s _) p n _) light = case light of
+    AmbientLight l_s c_l ->
+        (k_d *^ c_d) * (l_s *^ c_l)
+
+    DirectionalLight l_s c_l l ->
+        (k_d *^ c_d ^/ 3.14) ^* (max 0 $ n `dot` l) * (l_s *^ c_l)
+
+    PointLight l_s c_l lightPos -> if inShadow then V3 0 0 0 else diffuse + specular
+        where
+            -- when the object is blocked by another object
+            shadowRay = Ray (p + 0.001 *^ l) l
+            inShadow = isJust $ minIntersect shadowRay (filter (/= object) objects)
+
+            -- Lambertian shading model
+            l = normalize $ p - lightPos -- light direction
+            diffuseAmount = max 0 $ n `dot` l
+            diffuse = (k_d *^ c_d ^/ 3.14) ^* diffuseAmount * (l_s *^ c_l)
+
+            -- Phong shading model
+            k_s = object^.material^.specularRefection
+            e = object^.material^.shininess
+            w = normalize $ p - s -- view direction
+            r = 2 * (n `dot` l) *^ n - l -- reflection direction
+            specularAmount = max 0 $ r `dot` w
+            specular = k_s * (specularAmount ** e) * diffuseAmount *^ (l_s *^ c_l)
+
     where
         k_d = object^.material^.diffuseReflection
         c_d = object^.material^.diffuseColor
-
-calcShade object (RayHit _ _ n _) (DirectionalLight l_s c_l l) =
-    if n `dot` l > 0
-    then (k_d *^ c_d ^/ 3.14) ^* (n `dot` l) * (l_s *^ c_l)
-    else V3 0 0 0
-    where
-        k_d = object^.material.diffuseReflection
-        c_d = object^.material.diffuseColor
-
-calcShade object (RayHit (Ray s _) p n _) (PointLight l_s c_l lightPos) =
-    if inShadow then V3 0 0 0 else c
-    where
-        k_d = object^.material^.diffuseReflection
-        c_d = object^.material^.diffuseColor
-        k_s = object^.material^.specularRefection
-        e = object^.material^.shininess
-        w = normalize $ p - s
-        l = normalize $ p - lightPos -- light
-
-        -- when the object is blocked by another object
-        shadowRay = Ray (p + 0.001 *^ l) l
-        inShadow = isJust $ minIntersect shadowRay (filter (/= object) objects)
-
-        -- lambertian reflection is often used as a model for diffuse reflection
-        -- object's from the real world reflect on average around 18% of the light they receive.
-        lambertian = if n `dot` l > 0
-            then (k_d *^ c_d ^/ 3.14) ^* (n `dot` l) * (l_s *^ c_l)
-            else V3 0 0 0
-
-        -- Phong shading model
-        -- h = normalize $ l + v -- halfway vector between the viewer and light-source vectors
-        r = (-1) *^ l + 2 * (n `dot` l) *^ n
-        spec = if n `dot` l > 0
-            then k_s * ((r `dot` w) ** e) * (n `dot` l) *^ (l_s *^ c_l)
-            else V3 0 0 0
-
-        -- total color
-        c = lambertian + spec
 
 minIntersect :: Intersectable a => Ray -> [a] -> Maybe (a, RayHit)
 minIntersect ray os
