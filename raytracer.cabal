@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3d57730a12e5961f48a8b138de5b225f9537e067fba80564d0ca0c356f4a316f
+-- hash: fbcd0050f2d6503794d92646b8937157e16f98456d0c6ba8718b0aafd6b015c9
 
 name:           raytracer
 version:        0.1.0.0
@@ -37,6 +37,7 @@ library
     , repa
   exposed-modules:
       Lib
+      Light
       Object
       Ray
       Types

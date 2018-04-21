@@ -12,29 +12,11 @@ import Linear.V3
 import Linear.Vector
 import Data.Array.Repa (Array, DIM2, D, Z (..), (:.)(..))
 import qualified Data.Array.Repa as R
-import Codec.Picture (Pixel8)
 
 import Types
 import Object
 import Ray
-
-type RGB8 = (Pixel8, Pixel8, Pixel8)
-
-data Light =
-    AmbientLight
-    { radiance :: Double -- [0, inf)
-    , lightColor :: Color -- c_l
-    }
-    | DirectionalLight
-    { radiance :: Double -- l_s
-    , lightColor :: Color -- c_l
-    , lightDirection :: Vector
-    }
-    | PointLight
-    { radiance :: Double
-    , lightColor :: Color
-    , lightLocation :: Vector
-    }
+import Light
 
 eye, lookat, uu, vv, ww :: Vector
 eye = V3 0 (-100) 500
@@ -77,33 +59,36 @@ getPixel w h (Z :. j :. i) = (r, g, b)
         (V3 r g b) = max 0 . round . min 255 . (*255) . (/(n * n)) <$> sum colors
 
 getSample :: (Double, Double) -> (Double, Double) -> Color
-getSample (x, y) (dx, dy) = snd $ trace 0 1 (V3 0 0 0) (Ray eye d)
+getSample (x, y) (dx, dy) = trace (Ray eye d) 1 (V3 0 0 0)
     where
         x' = x + dx
         y' = y + dy
         d = normalize $ (x' *^ uu) + (y' *^ vv) - (viewDistance *^ ww)
 
-trace :: Int -> Double -> Color -> Ray -> (Double, Color)
-trace level coef clr ray = if notHit || coef <= 0 || level >= 15
-    then if notHit && level == 0 then (0, V3 0 0 0) else (0, clr)
-    else trace (level + 1) (coef * object^.material^.reflection) (clr + shadeColor) newRay
+trace :: Ray -> Int -> Color -> Color
+trace ray depth color = case minIntersect ray objects of
+    Nothing -> V3 0 0 0
+    Just (object, rayHit) -> shadeColor + reflectionColor
+        where
+            shadeColor = sum $ calcShade object rayHit <$> lights
+            reflectionColor = calcReflection object ray rayHit depth color
+
+calcReflection :: Object -> Ray -> RayHit -> Int -> Color -> Color
+calcReflection object ray rayHit depth color
+    | reflectColor <= 0 || depth >= 15 = color
+    | otherwise = (object^.material^.reflection) *^ reflectColor + color
     where
-        int = minIntersect ray objects
-        notHit = isNothing int
-        (object, rayHit) = fromJust int
-        shadeColor = coef *^ (sum $ calcColor object rayHit <$> lights)
+        reflectDir = 2 * ((ray^.rayDirection) `dot` (rayHit^.hitNormal))
+        reflectRay = Ray (rayHit^.hitPoint) ((ray^.rayDirection) - (reflectDir *^ (rayHit^.hitNormal)))
+        reflectColor = trace reflectRay (depth + 1) color
 
-        n = rayHit^.hitNormal
-        reflect = 2 * ((ray^.rayDirection) `dot` n)
-        newRay = Ray (rayHit^.hitPoint) ((ray^.rayDirection) - (reflect *^ n))
-
-calcColor :: Object -> RayHit -> Light -> Color
-calcColor object _ (AmbientLight l_s c_l) = (k_d *^ c_d) * (l_s *^ c_l)
+calcShade :: Object -> RayHit -> Light -> Color
+calcShade object _ (AmbientLight l_s c_l) = (k_d *^ c_d) * (l_s *^ c_l)
     where
         k_d = object^.material^.diffuseReflection
         c_d = object^.material^.diffuseColor
 
-calcColor object (RayHit _ _ n _) (DirectionalLight l_s c_l l) =
+calcShade object (RayHit _ _ n _) (DirectionalLight l_s c_l l) =
     if n `dot` l > 0
     then (k_d *^ c_d ^/ 3.14) ^* (n `dot` l) * (l_s *^ c_l)
     else V3 0 0 0
@@ -111,7 +96,7 @@ calcColor object (RayHit _ _ n _) (DirectionalLight l_s c_l l) =
         k_d = object^.material.diffuseReflection
         c_d = object^.material.diffuseColor
 
-calcColor object (RayHit (Ray s _) p n _) (PointLight l_s c_l lightPos) =
+calcShade object (RayHit (Ray s _) p n _) (PointLight l_s c_l lightPos) =
     if inShadow then V3 0 0 0 else c
     where
         k_d = object^.material^.diffuseReflection

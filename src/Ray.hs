@@ -3,6 +3,7 @@
 module Ray where
 
 import Control.Lens (makeLenses)
+
 import Types
 
 data Ray = Ray
