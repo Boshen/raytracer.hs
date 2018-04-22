@@ -88,19 +88,21 @@ calcShade scene object (RayHit (Ray s _) p n _) light = case light of
 
     PointLight l_s c_l lightPos -> if inShadow then V3 0 0 0 else diffuse + specular
         where
+            l = normalize $ lightPos - p -- light direction
+            w = normalize $ s - p -- view direction
+
             -- when the object is blocked by another object
             shadowRay = Ray (p + 0.001 *^ l) l
-            inShadow = isJust $ minIntersect shadowRay (filter (/= object) (scene^.objects))
+            os = filter (/= object) (scene^.objects)
+            inShadow = (n `dot` w > 0) && (any isJust $ intersects shadowRay <$> os)
 
             -- Lambertian shading model
-            l = normalize $ p - lightPos -- light direction
             diffuseAmount = max 0 $ n `dot` l
             diffuse = (k_d *^ c_d ^/ 3.14) ^* diffuseAmount * (l_s *^ c_l)
 
             -- Phong shading model
             k_s = object^.material^.specularRefection
             e = object^.material^.shininess
-            w = normalize $ p - s -- view direction
             r = 2 * diffuseAmount *^ n - l -- reflection direction
             specularAmount = r `dot` w
             specular = k_s * (specularAmount ** e) * diffuseAmount *^ (l_s *^ c_l)

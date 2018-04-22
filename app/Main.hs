@@ -36,5 +36,5 @@ main = do
         ls =
             [ AmbientLight 0.1 (V3 0.05 0.05 0.05)
             , DirectionalLight 1 (V3 1 1 1) (V3 1 (-1) 0)
-            , PointLight 3 (V3 1 1 1) (V3 (100) (500) (-200))
+            , PointLight 3 (V3 1 1 1) (V3 1000 (-5000) 0)
             ]
